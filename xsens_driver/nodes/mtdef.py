@@ -123,27 +123,26 @@ class MID:
 	## Initiate No Rotation procedure (not on MTi-G), 2 bytes
 	SetNoRotation = 0x22
 
+	@classmethod
+	def getName(cls, value):
+		'''Return the name of the first found member of class cls with given
+		value.'''
+		for k, v in cls.__dict__.iteritems():
+			if v==val:
+				return k
+		return ''
 
-
-def getName(cls, value):
-	'''Return the name of the first found member of class cls with given
-	value.'''
-	for k, v in cls.__dict__.iteritems():
-		if v==val:
-			return k
-	return ''
-
-
-def getMIDName(mid):
-	'''Return the name of a message given the message id.'''
-	name = getName(MID, mid)
-	if name:
-		return name
-	if mid&1:
-		name = getName(MID, mid-1)
+	@classmethod
+	def getMIDName(mid):
+		'''Return the name of a message given the message id.'''
+		name = getName(MID, mid)
 		if name:
-			return name+'Ack'
-	return 'unknown MID'
+			return name
+		if mid&1:
+			name = getName(MID, mid-1)
+			if name:
+				return name+'Ack'
+		return 'unknown MID'
 
 
 class Baudrates(object):
@@ -172,7 +171,7 @@ class Baudrates(object):
 				return brid
 		raise MTException("unsupported baudrate.")
 	@classmethod
-	def	get_BR(cls, baudrate_id):
+	def get_BR(cls, baudrate_id):
 		"""Get baudrate for a given baudrate id."""
 		for brid, br in cls.Baudrates:
 			if baudrate_id==brid:

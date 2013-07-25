@@ -7,7 +7,7 @@ import sys, getopt, time, glob#, traceback
 from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates
 
 # Verbose flag for debugging
-verbose = False
+verbose = True #False
 
 ################################################################
 # MTDevice class
@@ -18,41 +18,41 @@ class MTDevice(object):
 
 	def __init__(self, port, baudrate=115200, timeout=0.001, autoconf=True,
 			config_mode=False):
-		print("a")
+		#print("a")
 		"""Open device."""
 		## serial interface to the device
 		self.device = serial.Serial(port, baudrate, timeout=timeout,
 				writeTimeout=timeout)
-		print("b")
+		#print("b")
 		self.device.flushInput()	# flush to make sure the port is ready TODO
-		print("c")
+		#print("c")
 		self.device.flushOutput()	# flush to make sure the port is ready TODO
-		print("d")
+		#print("d")
 		## timeout for communication
 		self.timeout = 100*timeout
-		print("e")
+		#print("e")
 		if autoconf:
-			print("f1")
+			#print("f1")
 			self.auto_config() # TODO CHARENCE: problem here
-			print("f2")
+			#print("f2")
 		else:
 			## mode parameter of the IMU
 			self.mode = None
-			print("g")
+			#print("g")
 			## settings parameter of the IMU
 			self.settings = None
-			print("h")
+			#print("h")
 			## length of the MTData message
 			self.length = None
-			print("i")
+			#print("i")
 			## header of the MTData message
 			self.header = None
-			print("j")
+			#print("j")
 		if config_mode:
-			print("k1")
+			#print("k1")
 			self.GoToConfig()
-			print("k2")
-		print("l")
+			#print("k2")
+		#print("l")
 
 	############################################################
 	# Low-level communication
@@ -75,7 +75,7 @@ class MTDevice(object):
 		self.device.write(msg)
 		if verbose:
 			print "MT: Write message id 0x%02X (%s) with %d data bytes: [%s]" % \
-					(mid, getMIDName(mid), length, \
+					(mid, MID.getMIDName(mid), length, \
 							' '.join("%02X"% v for v in data))
 
 	## Low-level MTData receiving function.
@@ -186,9 +186,9 @@ class MTDevice(object):
 	## Place MT device in configuration mode.
 	def GoToConfig(self):
 		"""Place MT device in configuration mode."""
-		print("Place MT device in config mode BEGIN")
+		#print("Place MT device in config mode BEGIN")
 		self.write_ack(MID.GoToConfig) # TODO CHARENCE: problem here
-		print("Place MT device in config mode END")
+		#print("Place MT device in config mode END")
 
 
 	## Place MT device in measurement mode.
@@ -278,29 +278,29 @@ class MTDevice(object):
 	def ReqConfiguration(self):
 		"""Ask for the current configuration of the MT device.
 		Assume the device is in Config state."""
-		print("Ask for current config of MT device BEGIN")
+		#print("Ask for current config of MT device BEGIN")
 		config = self.write_ack(MID.ReqConfiguration)
-		print("ReqConfig 1")
+		#print("ReqConfig 1")
 		try:
-			print(struct.calcsize('!IHHHHI8s8s32x32xHIHHI8x'))
-			print(struct.unpack('!IHHHHI8s8s32x32xHIHHI8x', config))
+			#print(struct.calcsize('!IHHHHI8s8s32x32xHIHHI8x'))
+			#print(struct.unpack('!IHHHHI8s8s32x32xHIHHI8x', config))
 			masterID, period, skipfactor, _, _, _, date, time, num, deviceID,\
 					length, mode, settings =\
 					struct.unpack('!IHHHHI8s8s32x32xHIHHI8x', config) # TODO CHARENCE: problem here
-			print("ReqConfig 2")
+			#print("ReqConfig 2")
 		except struct.error as e:
-			print(len(config))
+			#print(len(config))
 			print(e)
 			raise MTException("could not parse configuration.")
-		print("ReqConfig 3")
+		#print("ReqConfig 3")
 		self.mode = mode
-		print("ReqConfig 4")
+		#print("ReqConfig 4")
 		self.settings = settings
-		print("ReqConfig 5")
+		#print("ReqConfig 5")
 		self.length = length
-		print("ReqConfig 6")
+		#print("ReqConfig 6")
 		self.header = '\xFA\xFF\x32'+chr(length)
-		print("ReqConfig 7")
+		#print("ReqConfig 7")
 		conf = {'output-mode': mode,
 				'output-settings': settings,
 				'length': length,
@@ -311,7 +311,7 @@ class MTDevice(object):
 				'time': time,
 				'number of devices': num,
 				'device ID': deviceID}
-		print("Ask for current config of MT device END")
+		#print("Ask for current config of MT device END")
 		return conf
 	
 
@@ -395,15 +395,15 @@ class MTDevice(object):
 	## Read configuration from device.
 	def auto_config(self):
 		"""Read configuration from device."""
-		print("f-1")
+		#print("f-1")
 		self.GoToConfig() # TODO CHARENCE: problem here
-		print("f-2")
+		#print("f-2")
 		self.ReqConfiguration() # TODO CHARENCE: problem here
-		print("f-3")
+		#print("f-3")
 		self.GoToMeasurement()
-		print("f-4")
+		#print("f-4")
 		return self.mode, self.settings, self.length
-		print("f-5")
+		#print("f-5")
 		#self.GoToConfig()
 		#mode = self.GetOutputMode()
 		#settings = self.GetOutputSettings()
@@ -781,13 +781,14 @@ def find_devices():
 # Auto detect baudrate
 ################################################################
 def find_baudrate(port):
-	baudrates = (921600, 115200, 460800, 921600, 230400, 57600, 38400, 19200, 9600)
+	#baudrates = (921600, 115200, 460800, 921600, 230400, 57600, 38400, 19200, 9600)
+	baudrates = (115200, 460800, 921600, 230400, 57600, 38400, 19200, 9600)
 	for br in baudrates:
 		try:
-			print("one")
+			#print("one")
 			#br = 921600
 			mt = MTDevice(port, br, 0.1) # TODO CHARENCE: problem here
-			print("hello")
+			#print("hello")
 		except serial.SerialException:
 			raise MTException("unable to open %s"%port)
 		try:
@@ -990,6 +991,7 @@ def main():
 		if not baudrate:
 			print "No suitable baudrate found."
 			return 1
+		print baudrate
 		# open device
 		try:
 			mt = MTDevice(device, baudrate)
