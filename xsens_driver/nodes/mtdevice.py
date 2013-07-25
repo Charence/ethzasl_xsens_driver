@@ -4,7 +4,7 @@ import struct
 
 import sys, getopt, time, glob#, traceback
 
-from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates
+from mtdef import MID, OutputMode, OutputSettings, MTException, Baudrates, XDIGroup, getName, getMIDName
 
 # Verbose flag for debugging
 verbose = True #False
@@ -57,7 +57,7 @@ class MTDevice(object):
 	############################################################
 	# Low-level communication
 	############################################################
-	
+
 	## Low-level message sending function.
 	def write_msg(self, mid, data=[]):
 		"""Low-level message sending function."""
@@ -74,8 +74,7 @@ class MTDevice(object):
 			pass
 		self.device.write(msg)
 		if verbose:
-			print "MT: Write message id 0x%02X (%s) with %d data bytes: [%s]" % \
-					(mid, MID.getMIDName(mid), length, \
+			print "MT: Write message id 0x%02X (%s) with %d data bytes: [%s]"%(mid, getMIDName(mid), length,
 							' '.join("%02X"% v for v in data))
 
 	## Low-level MTData receiving function.
@@ -120,8 +119,14 @@ class MTDevice(object):
 		"""Low-level message receiving function."""
 		start = time.time()
 		while (time.time()-start)<self.timeout:
-			# read first char of preamble
 			new_start = time.time()
+
+			# Makes sure the buffer has 'size' bytes.
+			def waitfor(size=1):
+				while self.device.inWaiting() < size:
+					if time.time()-new_start >= self.timeout:
+						raise MTException("timeout waiting for message.")
+
 			c = self.device.read()
 			while (not c) and ((time.time()-new_start)<self.timeout):
 				c = self.device.read() # loop until data is read
@@ -130,13 +135,18 @@ class MTDevice(object):
 			if ord(c)<>0xFA:
 				continue
 			# second part of preamble
+			waitfor(3)
 			if ord(self.device.read())<>0xFF:	# we assume no timeout anymore
 				continue
 			# read message id and length of message
+			#msg = self.device.read(2)
 			mid, length = struct.unpack('!BB', self.device.read(2))
 			if length==255:	# extended length
+				waitfor(2)
 				length, = struct.unpack('!H', self.device.read(2))
 			# read contents and checksum
+
+			waitfor(length+1)
 			buf = self.device.read(length+1)
 			while (len(buf)<length+1) and ((time.time()-start)<self.timeout):
 				buf+= self.device.read(length+1-len(buf))
@@ -148,8 +158,7 @@ class MTDevice(object):
 				sys.stderr.write("MT error 0x%02X: %s."%(data[0],
 						MID.ErrorCodes[data[0]]))
 			if verbose:
-				print "MT: Got message id 0x%02X (%s) with %d data bytes: [%s]" % \
-						(mid, getMIDName(mid), length, \
+				print "MT: Got message id 0x%02X (%s) with %d data bytes: [%s]"%(mid, getMIDName(mid), length,
 								' '.join("%02X"% v for v in data))
 			if 0xFF&sum(data, 0xFF+mid+length+checksum):
 				sys.stderr.write("invalid checksum; discarding data and "\
@@ -172,7 +181,7 @@ class MTDevice(object):
 					" (after 100 tries)."%(mid+1, mid_ack))
 		return data_ack
 
-		
+
 
 	############################################################
 	# High-level functions
@@ -214,7 +223,7 @@ class MTDevice(object):
 		self.mode, = struct.unpack('!H', data)
 		return self.mode
 
-	
+
 	## Select which information to output.
 	# Assume the device is in Config state.
 	def SetOutputMode(self, mode):
@@ -223,7 +232,7 @@ class MTDevice(object):
 		H, L = (mode&0xFF00)>>8, mode&0x00FF
 		self.write_ack(MID.SetOutputMode, (H, L))
 
-	
+
 	## Get current output mode.
 	# Assume the device is in Config state.
 	def GetOutputSettings(self):
@@ -233,7 +242,7 @@ class MTDevice(object):
 		self.settings, = struct.unpack('!I', data)
 		return self.settings
 
-	
+
 	## Select how to output the information.
 	# Assume the device is in Config state.
 	def SetOutputSettings(self, settings):
@@ -242,7 +251,7 @@ class MTDevice(object):
 		HH, HL = (settings&0xFF000000)>>24, (settings&0x00FF0000)>>16
 		LH, LL = (settings&0x0000FF00)>>8, settings&0x000000FF
 		self.write_ack(MID.SetOutputSettings, (HH, HL, LH, LL))
-	
+
 
 	## Set the period of sampling.
 	# Assume the device is in Config state.
@@ -272,7 +281,7 @@ class MTDevice(object):
 		self.header = '\xFA\xFF\x32'+chr(self.length)
 		return self.length
 
-	
+
 	## Ask for the current configuration of the MT device.
 	# Assume the device is in Config state.
 	def ReqConfiguration(self):
@@ -313,7 +322,7 @@ class MTDevice(object):
 				'device ID': deviceID}
 		#print("Ask for current config of MT device END")
 		return conf
-	
+
 
 	## Set the baudrate of the device using the baudrate id.
 	# Assume the device is in Config state.
@@ -417,12 +426,11 @@ class MTDevice(object):
 		#data = self.read_data_msg()
 		mid, data = self.read_msg()
 		if mid==MID.MTData:
-			return parse_MTData(data, mode, settings)
+			return self.parse_MTData(data, mode, settings)
 		elif mid==MID.MTData2:
-			return parse_MTData2(data)
+			return self.parse_MTData2(data)
 		else:
-			raise MTException("unknown data message: mid=0x%02X (%s).") % \
-				(mid, getMIDName(mid))
+			raise MTException("unknown data message: mid=0x%02X (%s)."%	(mid, getMIDName(mid)))
 
 	## Parse a new MTData2 message
 	def parse_MTData2(self, data):
@@ -823,7 +831,7 @@ Commands:
 		Print current MT device configuration.
 	-x, --xkf-scenario=ID
 		Change the current XKF scenario.
-		
+
 
 Options:
 	-d, --device=DEV
@@ -971,7 +979,7 @@ def main():
 			except ValueError:
 				print "skip-factor argument must be integer."
 				return 1
-	# if nothing else: echo 
+	# if nothing else: echo
 	if len(actions) == 0:
 		actions.append('echo')
 	try:
@@ -1000,7 +1008,7 @@ def main():
 		# execute actions
 		if 'inspect' in actions:
 			mt.GoToConfig()
-			print "Device: %s at %d Bd:"%(device, baudrate) 
+			print "Device: %s at %d Bd:"%(device, baudrate)
 			print "General configuration:", mt.ReqConfiguration()
 			print "Available scenarios:", mt.ReqAvailableScenarios()
 			print "Current scenario: %s (id: %d)"%mt.ReqCurrentScenario()[::-1]
@@ -1045,7 +1053,7 @@ def main():
 	except MTException as e:
 		#traceback.print_tb(sys.exc_info()[2])
 		print e
-		
+
 
 
 def get_mode(arg):
